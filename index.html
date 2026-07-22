@@ -62,7 +62,7 @@ document.getElementById('appointment-form').addEventListener('submit', function(
     phone: document.getElementById('phone').value,
     preferred_time: document.getElementById('preferred_time').value
   };
-  fetch('http://127.0.0.1:8000/inquiries', {
+  fetch('https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net/inquiries', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)

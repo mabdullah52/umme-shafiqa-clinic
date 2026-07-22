@@ -48,7 +48,7 @@ function loadData() {
 }
 
 function updateStatus(id, newStatus) {
-  fetch(`http://127.0.0.1:8000/inquiries/${id}`, {
+  fetch(`https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net/inquiries/${id}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: newStatus})
