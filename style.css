@@ -55,3 +55,28 @@ footer {
   padding: 20px;
   color: #666;
 }
+button {
+  background: #1b8a8a;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 1em;
+  cursor: pointer;
+}
+.info:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: box-shadow 0.2s ease;
+}
+
+h1 {
+  margin: 10px 0 5px;
+}
+
+.info ul {
+  padding-left: 20px;
+}
+
+.info li {
+  margin-bottom: 6px;
+}

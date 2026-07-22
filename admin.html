@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Umme Shafiqa Clinic — Appointment Requests</title>
+<style>
+body { font-family: 'Segoe UI', sans-serif; background: #f4f9f9; padding: 20px; }
+h1 { color: #1b8a8a; }
+table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+th { background: #1b8a8a; color: white; }
+tr.done { opacity: 0.5; }
+select { padding: 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>Appointment Requests</h1>
+<table id="data-table">
+<tr><th>Name</th><th>Phone</th><th>Preferred Time</th><th>Received</th><th>Status</th></tr>
+</table>
+
+<script>
+function loadData() {
+  fetch('http://127.0.0.1:8000/inquiries')
+    .then(res => res.json())
+    .then(data => {
+      data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const table = document.getElementById('data-table');
+      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Preferred Time</th><th>Received</th><th>Status</th></tr>';
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        if (row.status === 'Done') tr.classList.add('done');
+        const date = new Date(row.created_at).toLocaleString();
+        tr.innerHTML = `
+          <td>${row.name}</td>
+          <td>${row.phone}</td>
+          <td>${row.preferred_time || '—'}</td>
+          <td>${date}</td>
+          <td>
+            <select onchange="updateStatus(${row.id}, this.value)">
+              <option value="New" ${row.status === 'New' ? 'selected' : ''}>New</option>
+              <option value="Contacted" ${row.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
+              <option value="Done" ${row.status === 'Done' ? 'selected' : ''}>Done</option>
+            </select>
+          </td>`;
+        table.appendChild(tr);
+      });
+    });
+}
+
+function updateStatus(id, newStatus) {
+  fetch(`http://127.0.0.1:8000/inquiries/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: newStatus})
+  }).then(() => loadData());
+}
+
+loadData();
+</script>
+</body>
+</html>

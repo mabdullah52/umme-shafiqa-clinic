@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Umme Shafiqa Clinic</title>
 <link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/jpeg" href="logo.jpeg">
 </head>
 <body>
 
@@ -19,6 +20,15 @@
 </section>
 
 <section class="info">
+  <h2>Services</h2>
+  <ul>
+    <li>Gynae Consultation</li>
+    <li>Ultrasound (TVS)</li>
+    <li>Infertility & Female Health</li>
+  </ul>
+</section>
+
+<section class="info">
   <h2>Timings</h2>
   <p>Evenings: 6–9 PM &nbsp;|&nbsp; 7–10 PM</p>
   <p>For appointments, please message or call us on WhatsApp for the best available slot.</p>
@@ -29,9 +39,44 @@
   <p>House #113, Neelum Block, Allama Iqbal Town, Lahore</p>
 </section>
 
+<section class="info">
+  <h2>Request an Appointment</h2>
+  <form id="appointment-form">
+    <label>Name<br><input type="text" id="name" required></label><br><br>
+    <label>Phone<br><input type="tel" id="phone" required></label><br><br>
+    <label>Preferred Day/Time<br><input type="text" id="preferred_time" placeholder="e.g. Tuesday evening"></label><br><br>
+    <button type="submit">Send Request</button>
+  </form>
+  <p id="form-message"></p>
+</section>
+
 <footer>
   <p>Contact us on WhatsApp for appointments and inquiries.</p>
 </footer>
+
+<script>
+document.getElementById('appointment-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const data = {
+    name: document.getElementById('name').value,
+    phone: document.getElementById('phone').value,
+    preferred_time: document.getElementById('preferred_time').value
+  };
+  fetch('http://127.0.0.1:8000/inquiries', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(result => {
+    document.getElementById('form-message').textContent = "Thank you! Your request has been received.";
+    document.getElementById('appointment-form').reset();
+  })
+  .catch(err => {
+    document.getElementById('form-message').textContent = "Something went wrong. Please try WhatsApp instead.";
+  });
+});
+</script>
 
 </body>
 </html>
