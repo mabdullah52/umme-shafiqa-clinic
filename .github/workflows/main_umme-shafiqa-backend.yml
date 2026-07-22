@@ -63,4 +63,4 @@ jobs:
         with:
           app-name: 'umme-shafiqa-backend'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5C0160D9DBEC45CF8BF4B205C72F3DDC }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_AA4E32E4145E459796B86572B88C2C31 }}
