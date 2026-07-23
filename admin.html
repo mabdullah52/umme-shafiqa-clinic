@@ -17,11 +17,29 @@ select { padding: 5px; border-radius: 4px; }
 <table id="data-table">
 <tr><th>Name</th><th>Phone</th><th>Preferred Time</th><th>Received</th><th>Status</th></tr>
 </table>
-
 <script>
+const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
+let authHeader = null;
+
+function getAuth() {
+  if (!authHeader) {
+    const user = prompt("Admin username:");
+    const pass = prompt("Admin password:");
+    authHeader = 'Basic ' + btoa(user + ':' + pass);
+  }
+  return authHeader;
+}
+
 function loadData() {
-  fetch('http://127.0.0.1:8000/inquiries')
-    .then(res => res.json())
+  fetch(BACKEND + '/inquiries', { headers: { 'Authorization': getAuth() } })
+    .then(res => {
+      if (res.status === 401) {
+        authHeader = null;
+        alert('Wrong username or password.');
+        throw new Error('unauthorized');
+      }
+      return res.json();
+    })
     .then(data => {
       data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       const table = document.getElementById('data-table');
@@ -44,13 +62,14 @@ function loadData() {
           </td>`;
         table.appendChild(tr);
       });
-    });
+    })
+    .catch(() => {});
 }
 
 function updateStatus(id, newStatus) {
-  fetch(`https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net/inquiries/${id}`, {
+  fetch(`${BACKEND}/inquiries/${id}`, {
     method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'Authorization': getAuth()},
     body: JSON.stringify({status: newStatus})
   }).then(() => loadData());
 }
