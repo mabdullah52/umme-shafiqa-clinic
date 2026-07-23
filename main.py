@@ -8,7 +8,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
-engine = create_engine("sqlite:///clinic.db")
+engine = create_engine("sqlite:////home/site/wwwroot/clinic.db")
 Base = declarative_base()
 SessionLocal = sessionmaker(bind=engine)
 
