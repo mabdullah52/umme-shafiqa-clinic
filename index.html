@@ -2,56 +2,92 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Umme Shafiqa Clinic</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Umme Shafiqa Clinic — Dr. Rashida Latif, Gynaecologist</title>
+<meta name="description" content="Evening gynaecology consultations, ultrasound, and infertility care with Dr. Rashida Latif in Allama Iqbal Town, Lahore.">
 <link rel="stylesheet" href="style.css">
 <link rel="icon" type="image/jpeg" href="logo.jpeg">
 </head>
 <body>
 
-<header>
+<header class="hero">
   <img src="logo.jpeg" alt="Umme Shafiqa Clinic Logo" class="logo">
   <h1>Umme Shafiqa Clinic</h1>
   <p class="doctor">Dr. Rashida Latif — Gynaecologist</p>
+  <span class="hours-badge">Open evenings · 6–9 PM &amp; 7–10 PM</span>
+  <br>
+  <a href="#appointment" class="hero-cta">Request an Appointment</a>
 </header>
+<hr class="horizon">
 
 <section class="info">
   <h2>About the Doctor</h2>
-  <p>Dr. Rashida Latif is a gynaecologist providing consultation, ultrasound, and infertility care from Umme Shafiqa Clinic. Patients are seen by appointment to ensure focused, unrushed care.</p>
+  <p>Dr. Rashida Latif is a gynaecologist providing consultation, ultrasound, and infertility care from Umme Shafiqa Clinic. Patients are seen by appointment, in the evening, so every visit gets focused, unrushed attention rather than a rushed daytime slot between other errands.</p>
 </section>
 
 <section class="info">
   <h2>Services</h2>
-  <ul>
-    <li>Gynae Consultation</li>
-    <li>Ultrasound (TVS)</li>
-    <li>Infertility & Female Health</li>
-  </ul>
+  <div class="services-grid">
+    <div class="service-card">
+      <div class="icon">🩺</div>
+      <h3>Gynae Consultation</h3>
+      <p>General and specialist consultations for women's health concerns.</p>
+    </div>
+    <div class="service-card">
+      <div class="icon">📷</div>
+      <h3>Ultrasound (TVS)</h3>
+      <p>Transvaginal ultrasound scans performed in-clinic.</p>
+    </div>
+    <div class="service-card">
+      <div class="icon">🌸</div>
+      <h3>Infertility &amp; Female Health</h3>
+      <p>Ongoing care and guidance for infertility and reproductive health.</p>
+    </div>
+  </div>
 </section>
 
 <section class="info">
   <h2>Timings</h2>
-  <p>Evenings: 6–9 PM &nbsp;|&nbsp; 7–10 PM</p>
-  <p>For appointments, please message or call us on WhatsApp for the best available slot.</p>
+  <div class="timings-strip">
+    <span class="slot">6 – 9 PM</span>
+    <span class="slot">7 – 10 PM</span>
+    <p>For appointments, please message or call us on WhatsApp for the best available slot.</p>
+  </div>
 </section>
 
 <section class="info">
   <h2>Location</h2>
-  <p>House #113, Neelum Block, Allama Iqbal Town, Lahore</p>
+  <p class="address">House #113, Neelum Block, Allama Iqbal Town, Lahore</p>
+  <iframe class="map-frame" loading="lazy"
+    src="https://www.google.com/maps?q=House+113+Neelum+Block+Allama+Iqbal+Town+Lahore&output=embed">
+  </iframe>
 </section>
 
-<section class="info">
+<section class="info" id="appointment">
   <h2>Request an Appointment</h2>
   <form id="appointment-form">
-    <label>Name<br><input type="text" id="name" required></label><br><br>
-    <label>Phone<br><input type="tel" id="phone" required></label><br><br>
-    <label>Preferred Day/Time<br><input type="text" id="preferred_time" placeholder="e.g. Tuesday evening"></label><br><br>
+    <label>Name
+      <input type="text" id="name" required>
+    </label>
+    <label>Phone
+      <input type="tel" id="phone" required>
+    </label>
+    <label>Preferred Day/Time
+      <input type="text" id="preferred_time" placeholder="e.g. Tuesday evening">
+    </label>
     <button type="submit">Send Request</button>
   </form>
   <p id="form-message"></p>
 </section>
 
+<hr class="horizon">
 <footer>
+  <div class="social-links">
+    <a href="https://instagram.com/ummeshafiqaclinic" target="_blank" rel="noopener">Instagram</a>
+    <a href="#" target="_blank" rel="noopener">Facebook</a>
+  </div>
   <p>Contact us on WhatsApp for appointments and inquiries.</p>
+  <p>&copy; Umme Shafiqa Clinic</p>
 </footer>
 
 <script>
