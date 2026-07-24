@@ -255,15 +255,19 @@ form button:hover { transform: translateY(-1px); }
   padding: 10px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--cream);
+  background: #fff;
+  color: var(--slate);
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(27,58,75,0.06);
 }
 
 .slot-btn:hover:not(:disabled) {
   border-color: var(--amber);
+  background: #FFFBF3;
 }
 
 .slot-btn.selected {
@@ -274,9 +278,12 @@ form button:hover { transform: translateY(-1px); }
 
 .slot-btn.full,
 .slot-btn:disabled {
-  opacity: 0.4;
+  background: #EFEAE0;
+  color: var(--slate-soft);
+  border-color: var(--line);
+  opacity: 1;
   cursor: not-allowed;
-  text-decoration: line-through;
+  box-shadow: none;
 }
 
 #form-message {

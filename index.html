@@ -97,6 +97,8 @@
 <script>
 const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
 const dateInput = document.getElementById('appointment_date');
+const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+dateInput.min = todayStr;
 const slotPicker = document.getElementById('slot-picker');
 const selectedSlotInput = document.getElementById('selected_slot');
 const submitBtn = document.getElementById('submit-btn');
@@ -127,10 +129,14 @@ dateInput.addEventListener('change', () => {
       data.slots.forEach(slot => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'slot-btn' + (slot.full ? ' full' : '');
-        btn.textContent = formatTime12h(slot.time);
-        btn.disabled = slot.full;
-        btn.title = slot.full ? 'Full' : `${slot.remaining} spot(s) left`;
+        const disabled = slot.full || slot.past;
+        let label = formatTime12h(slot.time);
+        if (slot.past) label += ' — Past';
+        else if (slot.full) label += ' — Fully Booked';
+        btn.className = 'slot-btn' + (disabled ? ' full' : '');
+        btn.textContent = label;
+        btn.disabled = disabled;
+        btn.title = slot.past ? 'This time has already passed' : (slot.full ? 'Fully booked, please choose another time' : `${slot.remaining} spot(s) left`);
         btn.addEventListener('click', () => {
           document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
           btn.classList.add('selected');
@@ -148,6 +154,11 @@ dateInput.addEventListener('change', () => {
 document.getElementById('appointment-form').addEventListener('submit', function(e) {
   e.preventDefault();
   if (!selectedSlotInput.value) return;
+
+  if (dateInput.value < todayStr) {
+    document.getElementById('form-message').textContent = "Please choose a present or future date.";
+    return;
+  }
 
   const data = {
     name: document.getElementById('name').value,

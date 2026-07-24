@@ -1,6 +1,7 @@
 import os
 import secrets
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -8,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+CLINIC_TZ = ZoneInfo("Asia/Karachi")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///clinic.db")
 engine = create_engine(DATABASE_URL)
@@ -76,6 +79,13 @@ class StatusUpdate(BaseModel):
     appointment_time: str = None
 
 
+def is_slot_in_past(target_date: date, slot_time: str) -> bool:
+    """True if this date+time slot has already passed, using Lahore local time."""
+    hour, minute = map(int, slot_time.split(":"))
+    slot_dt = datetime(target_date.year, target_date.month, target_date.day, hour, minute, tzinfo=CLINIC_TZ)
+    return slot_dt <= datetime.now(CLINIC_TZ)
+
+
 def slot_counts_for_date(db, target_date: date):
     """Returns {time: booked_count} for every slot on a given date."""
     rows = db.query(Inquiry).filter(Inquiry.appointment_date == target_date).all()
@@ -100,6 +110,7 @@ def available_slots(for_date: date):
             "time": t,
             "remaining": max(0, SLOT_CAPACITY - counts[t]),
             "full": counts[t] >= SLOT_CAPACITY,
+            "past": is_slot_in_past(for_date, t),
         }
         for t in SLOT_TIMES
     ]
@@ -112,12 +123,14 @@ def create_inquiry(inquiry: InquiryIn):
         raise HTTPException(status_code=400, detail="Clinic is closed on weekends. Please pick a weekday.")
     if inquiry.appointment_time not in SLOT_TIMES:
         raise HTTPException(status_code=400, detail="Invalid time slot.")
+    if is_slot_in_past(inquiry.appointment_date, inquiry.appointment_time):
+        raise HTTPException(status_code=400, detail="This date and time has already passed. Please choose a present or future time.")
 
     db = SessionLocal()
     counts = slot_counts_for_date(db, inquiry.appointment_date)
     if counts[inquiry.appointment_time] >= SLOT_CAPACITY:
         db.close()
-        raise HTTPException(status_code=409, detail="This slot is full. Please choose another time.")
+        raise HTTPException(status_code=409, detail="This date and time slot is already booked. Please choose another time.")
 
     new_inquiry = Inquiry(
         name=inquiry.name,
