@@ -114,6 +114,48 @@ tr.done td { opacity: 0.55; }
   cursor: pointer;
 }
 
+.reassign-btn {
+  display: block;
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  color: var(--navy);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reassign-save-btn, .reassign-cancel-btn {
+  margin-top: 6px;
+  margin-right: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+}
+
+.reassign-save-btn {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.reassign-cancel-btn {
+  background: #fff;
+  color: var(--slate);
+}
+
+[id^="appt-cell-"] select, [id^="appt-cell-"] input[type="date"] {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+}
+
 select {
   padding: 6px 10px;
   border-radius: 6px;
@@ -192,7 +234,10 @@ function loadData() {
           <td>${row.name}</td>
           <td>${row.phone}</td>
           <td>${isOnline ? '💻 Online' : '🏥 In-Person'}${isOnline ? `<br><button type="button" onclick="viewPayment(${row.id})" class="view-payment-btn">View Payment</button>` : ''}</td>
-          <td>${row.appointment_date ? row.appointment_date + ' ' + row.appointment_time : '—'}</td>
+          <td id="appt-cell-${row.id}">
+            <span id="appt-text-${row.id}">${row.appointment_date ? row.appointment_date + ' ' + formatTime12h(row.appointment_time) : '—'}</span>
+            <button type="button" class="reassign-btn" onclick="startReassign(${row.id}, '${row.appointment_date || ''}')">Reassign</button>
+          </td>
           <td>${date}</td>
           <td>
             <span class="status-pill" style="background:${color}">${row.status}</span>
@@ -207,6 +252,72 @@ function loadData() {
       });
     })
     .catch(() => {});
+}
+
+function formatTime12h(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = ((h + 11) % 12) + 1;
+  return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+function startReassign(id, currentDate) {
+  const cell = document.getElementById(`appt-cell-${id}`);
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  cell.innerHTML = `
+    <input type="date" id="reassign-date-${id}" min="${todayStr}" value="${currentDate || todayStr}">
+    <select id="reassign-slot-${id}"><option>Pick a date first</option></select>
+    <br>
+    <button type="button" onclick="saveReassign(${id})" class="reassign-save-btn">Save</button>
+    <button type="button" onclick="loadData()" class="reassign-cancel-btn">Cancel</button>
+  `;
+  const dateInput = document.getElementById(`reassign-date-${id}`);
+  dateInput.addEventListener('change', () => loadReassignSlots(id, dateInput.value));
+  loadReassignSlots(id, dateInput.value);
+}
+
+function loadReassignSlots(id, forDate) {
+  const select = document.getElementById(`reassign-slot-${id}`);
+  select.innerHTML = '<option>Loading...</option>';
+  fetch(`${BACKEND}/available-slots?for_date=${forDate}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.open) {
+        select.innerHTML = '<option value="">Closed this day</option>';
+        return;
+      }
+      select.innerHTML = '';
+      data.slots.forEach(slot => {
+        const opt = document.createElement('option');
+        opt.value = slot.time;
+        const label = formatTime12h(slot.time) + (slot.past ? ' — Past' : slot.full ? ' — Full' : ` — ${slot.remaining} left`);
+        opt.textContent = label;
+        if (slot.full || slot.past) opt.disabled = true;
+        select.appendChild(opt);
+      });
+    })
+    .catch(() => { select.innerHTML = '<option value="">Could not load slots</option>'; });
+}
+
+function saveReassign(id) {
+  const newDate = document.getElementById(`reassign-date-${id}`).value;
+  const newTime = document.getElementById(`reassign-slot-${id}`).value;
+  if (!newDate || !newTime) {
+    alert('Please pick both a date and an available time.');
+    return;
+  }
+  fetch(`${BACKEND}/inquiries/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json', 'Authorization': getAuth()},
+    body: JSON.stringify({appointment_date: newDate, appointment_time: newTime})
+  })
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) { alert(result.detail || 'Could not reassign this booking.'); return; }
+    loadData();
+  })
+  .catch(() => alert('Something went wrong reassigning this booking.'));
 }
 
 function viewPayment(id) {
