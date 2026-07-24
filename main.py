@@ -1,14 +1,16 @@
 import os
 import secrets
+from datetime import datetime
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime
-from fastapi.middleware.cors import CORSMiddleware
 
-engine = create_engine("sqlite:////home/site/wwwroot/clinic.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///clinic.db")
+engine = create_engine(DATABASE_URL)
 Base = declarative_base()
 SessionLocal = sessionmaker(bind=engine)
 
