@@ -191,6 +191,55 @@ section.info h2::after {
   color: var(--slate);
 }
 
+/* Emergency Contact */
+.emergency-strip {
+  background: #FBEEEC;
+  border: 1px solid var(--rose);
+  border-radius: 14px;
+  padding: 20px 24px;
+  text-align: center;
+}
+
+.emergency-strip h2 {
+  color: var(--rose);
+  font-size: 1.2rem;
+}
+
+.emergency-strip h2::after { display: none; }
+
+.emergency-numbers {
+  font-family: 'Fraunces', serif;
+  font-size: 1.2rem;
+  color: var(--navy);
+  margin-top: 6px;
+}
+
+/* FAQ */
+.faq-list {
+  margin-top: 16px;
+}
+
+.faq-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+
+.faq-item summary {
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  font-size: 0.96rem;
+}
+
+.faq-item p {
+  margin: 10px 0 0;
+  color: var(--slate-soft);
+  font-size: 0.92rem;
+}
+
 /* Form */
 form#appointment-form {
   background: #fff;
