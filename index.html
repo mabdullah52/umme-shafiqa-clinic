@@ -65,6 +65,23 @@
 <section class="info" id="appointment">
   <h2>Request an Appointment</h2>
   <form id="appointment-form">
+    <label>Appointment Type</label>
+    <div class="type-toggle">
+      <button type="button" class="type-btn selected" data-type="physical">In-Person Visit</button>
+      <button type="button" class="type-btn" data-type="online">Online Consultation (20 min)</button>
+    </div>
+
+    <div id="payment-info" class="payment-info" style="display:none;">
+      <h3>Payment Details</h3>
+      <p>Please pay the consultation fee via one of the below, then upload a screenshot of the payment before submitting.</p>
+      <p><strong>JazzCash / EasyPaisa:</strong> 0300-7605291</p>
+      <p><strong>Meezan Bank:</strong> 02120103496572</p>
+      <p><strong>Account Title:</strong> Rashida Parveen</p>
+      <label>Payment Screenshot
+        <input type="file" id="payment_screenshot" accept="image/*">
+      </label>
+    </div>
+
     <label>Name
       <input type="text" id="name" required>
     </label>
@@ -96,6 +113,15 @@
 
 <script>
 const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
+let appointmentType = 'physical';
+document.querySelectorAll('.type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    appointmentType = btn.dataset.type;
+    document.getElementById('payment-info').style.display = appointmentType === 'online' ? 'block' : 'none';
+  });
+});
 const dateInput = document.getElementById('appointment_date');
 const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 dateInput.min = todayStr;
@@ -160,23 +186,37 @@ document.getElementById('appointment-form').addEventListener('submit', function(
     return;
   }
 
-  const data = {
-    name: document.getElementById('name').value,
-    phone: document.getElementById('phone').value,
-    appointment_date: dateInput.value,
-    appointment_time: selectedSlotInput.value
-  };
+  const screenshotInput = document.getElementById('payment_screenshot');
+  if (appointmentType === 'online' && (!screenshotInput.files || screenshotInput.files.length === 0)) {
+    document.getElementById('form-message').textContent = "Please upload your payment screenshot to book an online consultation.";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('name', document.getElementById('name').value);
+  formData.append('phone', document.getElementById('phone').value);
+  formData.append('appointment_date', dateInput.value);
+  formData.append('appointment_time', selectedSlotInput.value);
+  formData.append('appointment_type', appointmentType);
+  if (appointmentType === 'online' && screenshotInput.files[0]) {
+    formData.append('payment_screenshot', screenshotInput.files[0]);
+  }
 
   fetch(`${BACKEND}/inquiries`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
+    body: formData
   })
   .then(async res => {
     const result = await res.json();
     if (!res.ok) throw new Error(result.detail || 'Something went wrong');
-    document.getElementById('form-message').textContent = "Thank you! Your request has been received.";
+    document.getElementById('form-message').textContent = appointmentType === 'online'
+      ? "Thank you! Your request is pending — we'll confirm once your payment is verified."
+      : "Thank you! Your request has been received.";
     document.getElementById('appointment-form').reset();
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelector('.type-btn[data-type="physical"]').classList.add('selected');
+    appointmentType = 'physical';
+    document.getElementById('payment-info').style.display = 'none';
     slotPicker.innerHTML = '<p class="slot-hint">Pick a date to see available times.</p>';
     submitBtn.disabled = true;
   })

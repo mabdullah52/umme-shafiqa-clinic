@@ -238,6 +238,55 @@ form button {
 
 form button:hover { transform: translateY(-1px); }
 
+.type-toggle {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 20px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.type-btn.selected {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.payment-info {
+  background: #FFFBF3;
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.payment-info h3 {
+  font-size: 1.05rem;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.payment-info p {
+  font-size: 0.9rem;
+  margin: 4px 0;
+}
+
+.payment-info input[type="file"] {
+  margin-top: 6px;
+  width: 100%;
+}
+
 .slot-picker {
   display: flex;
   flex-wrap: wrap;

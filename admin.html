@@ -103,6 +103,17 @@ tr.done td { opacity: 0.55; }
   margin-right: 8px;
 }
 
+.view-payment-btn {
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  border: 1px solid var(--amber);
+  background: #FFFBF3;
+  color: var(--navy);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 select {
   padding: 6px 10px;
   border-radius: 6px;
@@ -131,13 +142,13 @@ select {
 
 <div class="table-wrap">
   <table id="data-table">
-    <tr><th>Name</th><th>Phone</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
+    <tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
   </table>
 </div>
 
 <script>
 const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
-const STATUS_COLORS = { New: '#C17767', Contacted: '#D9A24B', Done: '#6B8F71' };
+const STATUS_COLORS = { New: '#C17767', Contacted: '#D9A24B', Done: '#6B8F71', 'Pending Payment Verification': '#B5697A' };
 let authHeader = null;
 
 function getAuth() {
@@ -162,11 +173,11 @@ function loadData() {
     .then(data => {
       data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       const table = document.getElementById('data-table');
-      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Appointment</th><th>Received</th><th>Status</th></tr>';
+      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>';
 
       if (data.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" class="empty-state">No appointment requests yet.</td>`;
+        tr.innerHTML = `<td colspan="6" class="empty-state">No appointment requests yet.</td>`;
         table.appendChild(tr);
         return;
       }
@@ -176,14 +187,17 @@ function loadData() {
         if (row.status === 'Done') tr.classList.add('done');
         const date = new Date(row.created_at).toLocaleString();
         const color = STATUS_COLORS[row.status] || '#999';
+        const isOnline = row.appointment_type === 'online';
         tr.innerHTML = `
           <td>${row.name}</td>
           <td>${row.phone}</td>
+          <td>${isOnline ? '💻 Online' : '🏥 In-Person'}${isOnline ? `<br><button type="button" onclick="viewPayment(${row.id})" class="view-payment-btn">View Payment</button>` : ''}</td>
           <td>${row.appointment_date ? row.appointment_date + ' ' + row.appointment_time : '—'}</td>
           <td>${date}</td>
           <td>
             <span class="status-pill" style="background:${color}">${row.status}</span>
             <select onchange="updateStatus(${row.id}, this.value)">
+              <option value="Pending Payment Verification" ${row.status === 'Pending Payment Verification' ? 'selected' : ''}>Pending Payment</option>
               <option value="New" ${row.status === 'New' ? 'selected' : ''}>New</option>
               <option value="Contacted" ${row.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
               <option value="Done" ${row.status === 'Done' ? 'selected' : ''}>Done</option>
@@ -193,6 +207,19 @@ function loadData() {
       });
     })
     .catch(() => {});
+}
+
+function viewPayment(id) {
+  fetch(`${BACKEND}/payment-screenshot/${id}`, { headers: { 'Authorization': getAuth() } })
+    .then(res => {
+      if (!res.ok) throw new Error('Could not load screenshot');
+      return res.blob();
+    })
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    })
+    .catch(() => alert('Could not load payment screenshot.'));
 }
 
 function updateStatus(id, newStatus) {
