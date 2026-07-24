@@ -131,7 +131,7 @@ select {
 
 <div class="table-wrap">
   <table id="data-table">
-    <tr><th>Name</th><th>Phone</th><th>Preferred Time</th><th>Received</th><th>Status</th></tr>
+    <tr><th>Name</th><th>Phone</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
   </table>
 </div>
 
@@ -162,7 +162,7 @@ function loadData() {
     .then(data => {
       data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       const table = document.getElementById('data-table');
-      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Preferred Time</th><th>Received</th><th>Status</th></tr>';
+      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Appointment</th><th>Received</th><th>Status</th></tr>';
 
       if (data.length === 0) {
         const tr = document.createElement('tr');
@@ -179,7 +179,7 @@ function loadData() {
         tr.innerHTML = `
           <td>${row.name}</td>
           <td>${row.phone}</td>
-          <td>${row.preferred_time || '—'}</td>
+          <td>${row.appointment_date ? row.appointment_date + ' ' + row.appointment_time : '—'}</td>
           <td>${date}</td>
           <td>
             <span class="status-pill" style="background:${color}">${row.status}</span>

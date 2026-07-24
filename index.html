@@ -14,7 +14,7 @@
   <img src="logo.jpeg" alt="Umme Shafiqa Clinic Logo" class="logo">
   <h1>Umme Shafiqa Clinic</h1>
   <p class="doctor">Dr. Rashida Latif — Gynaecologist</p>
-  <span class="hours-badge">Open evenings · 6–9 PM &amp; 7–10 PM</span>
+  <span class="hours-badge">Open evenings · Mon–Fri · 7:30–10:00 PM</span>
   <br>
   <a href="#appointment" class="hero-cta">Request an Appointment</a>
 </header>
@@ -49,9 +49,8 @@
 <section class="info">
   <h2>Timings</h2>
   <div class="timings-strip">
-    <span class="slot">6 – 9 PM</span>
-    <span class="slot">7 – 10 PM</span>
-    <p>For appointments, please message or call us on WhatsApp for the best available slot.</p>
+    <span class="slot">7:30 – 10:00 PM</span>
+    <p>Monday to Friday. Closed on weekends. Pick an exact time slot below when requesting an appointment.</p>
   </div>
 </section>
 
@@ -72,10 +71,15 @@
     <label>Phone
       <input type="tel" id="phone" required>
     </label>
-    <label>Preferred Day/Time
-      <input type="text" id="preferred_time" placeholder="e.g. Tuesday evening">
+    <label>Date
+      <input type="date" id="appointment_date" required>
     </label>
-    <button type="submit">Send Request</button>
+    <label>Available Time Slots</label>
+    <div id="slot-picker" class="slot-picker">
+      <p class="slot-hint">Pick a date to see available times.</p>
+    </div>
+    <input type="hidden" id="selected_slot">
+    <button type="submit" id="submit-btn" disabled>Send Request</button>
   </form>
   <p id="form-message"></p>
 </section>
@@ -91,25 +95,82 @@
 </footer>
 
 <script>
+const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
+const dateInput = document.getElementById('appointment_date');
+const slotPicker = document.getElementById('slot-picker');
+const selectedSlotInput = document.getElementById('selected_slot');
+const submitBtn = document.getElementById('submit-btn');
+
+function formatTime12h(t) {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = ((h + 11) % 12) + 1;
+  return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+dateInput.addEventListener('change', () => {
+  const chosenDate = dateInput.value;
+  selectedSlotInput.value = '';
+  submitBtn.disabled = true;
+  if (!chosenDate) return;
+
+  slotPicker.innerHTML = '<p class="slot-hint">Loading available times...</p>';
+
+  fetch(`${BACKEND}/available-slots?for_date=${chosenDate}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.open) {
+        slotPicker.innerHTML = '<p class="slot-hint">Clinic is closed on this day. Please choose Mon–Fri.</p>';
+        return;
+      }
+      slotPicker.innerHTML = '';
+      data.slots.forEach(slot => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn' + (slot.full ? ' full' : '');
+        btn.textContent = formatTime12h(slot.time);
+        btn.disabled = slot.full;
+        btn.title = slot.full ? 'Full' : `${slot.remaining} spot(s) left`;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedSlotInput.value = slot.time;
+          submitBtn.disabled = false;
+        });
+        slotPicker.appendChild(btn);
+      });
+    })
+    .catch(() => {
+      slotPicker.innerHTML = '<p class="slot-hint">Could not load slots. Please try again.</p>';
+    });
+});
+
 document.getElementById('appointment-form').addEventListener('submit', function(e) {
   e.preventDefault();
+  if (!selectedSlotInput.value) return;
+
   const data = {
     name: document.getElementById('name').value,
     phone: document.getElementById('phone').value,
-    preferred_time: document.getElementById('preferred_time').value
+    appointment_date: dateInput.value,
+    appointment_time: selectedSlotInput.value
   };
-  fetch('https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net/inquiries', {
+
+  fetch(`${BACKEND}/inquiries`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data)
   })
-  .then(res => res.json())
-  .then(result => {
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || 'Something went wrong');
     document.getElementById('form-message').textContent = "Thank you! Your request has been received.";
     document.getElementById('appointment-form').reset();
+    slotPicker.innerHTML = '<p class="slot-hint">Pick a date to see available times.</p>';
+    submitBtn.disabled = true;
   })
   .catch(err => {
-    document.getElementById('form-message').textContent = "Something went wrong. Please try WhatsApp instead.";
+    document.getElementById('form-message').textContent = err.message || "Something went wrong. Please try WhatsApp instead.";
   });
 });
 </script>

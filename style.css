@@ -238,6 +238,47 @@ form button {
 
 form button:hover { transform: translateY(-1px); }
 
+.slot-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 18px;
+}
+
+.slot-hint {
+  font-size: 0.9rem;
+  color: var(--slate-soft);
+  margin: 0;
+}
+
+.slot-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.slot-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+}
+
+.slot-btn.selected {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.slot-btn.full,
+.slot-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
 #form-message {
   margin-top: 14px;
   font-weight: 500;
