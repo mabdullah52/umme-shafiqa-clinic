@@ -250,6 +250,7 @@ form button:hover { transform: translateY(-1px); }
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+  color: var(--slate);
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
   font-weight: 500;
