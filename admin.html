@@ -114,6 +114,18 @@ tr.done td { opacity: 0.55; }
   cursor: pointer;
 }
 
+.cancel-btn {
+  display: block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border: 1px solid #C17767;
+  background: #FBEEEC;
+  color: #A34A3A;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 .reassign-btn {
   display: block;
   margin-top: 4px;
@@ -190,7 +202,7 @@ select {
 
 <script>
 const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
-const STATUS_COLORS = { New: '#C17767', Contacted: '#D9A24B', Done: '#6B8F71', 'Pending Payment Verification': '#B5697A' };
+const STATUS_COLORS = { New: '#C17767', Contacted: '#D9A24B', Done: '#6B8F71', 'Pending Payment Verification': '#B5697A', Cancelled: '#8A8A8A' };
 let authHeader = null;
 
 function getAuth() {
@@ -246,7 +258,9 @@ function loadData() {
               <option value="New" ${row.status === 'New' ? 'selected' : ''}>New</option>
               <option value="Contacted" ${row.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
               <option value="Done" ${row.status === 'Done' ? 'selected' : ''}>Done</option>
+              <option value="Cancelled" ${row.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
             </select>
+            ${row.status !== 'Cancelled' ? `<button type="button" class="cancel-btn" onclick="cancelBooking(${row.id}, '${row.name.replace(/'/g, "\\'")}')">Cancel</button>` : ''}
           </td>`;
         table.appendChild(tr);
       });
@@ -331,6 +345,13 @@ function viewPayment(id) {
       window.open(url, '_blank');
     })
     .catch(() => alert('Could not load payment screenshot.'));
+}
+
+function cancelBooking(id, name) {
+  if (!confirm(`Cancel ${name}'s appointment? This will free up their slot for someone else to book.`)) {
+    return;
+  }
+  updateStatus(id, 'Cancelled');
 }
 
 function updateStatus(id, newStatus) {

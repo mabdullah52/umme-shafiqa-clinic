@@ -2,6 +2,8 @@ import os
 import secrets
 import shutil
 import smtplib
+import string
+import random
 import uuid
 from datetime import datetime, date
 from email.mime.text import MIMEText
@@ -12,6 +14,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Form, File, UploadF
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -47,6 +50,7 @@ class Inquiry(Base):
     appointment_time = Column(String)
     appointment_type = Column(String, default="physical")  # "physical" or "online"
     payment_screenshot_path = Column(String)  # filename only, nullable
+    confirmation_code = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="New")
 
@@ -58,6 +62,7 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS appointment_time VARCHAR"))
     conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS appointment_type VARCHAR DEFAULT 'physical'"))
     conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS payment_screenshot_path VARCHAR"))
+    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS confirmation_code VARCHAR"))
     conn.commit()
 
 app = FastAPI()
@@ -90,13 +95,60 @@ def is_slot_in_past(target_date: date, slot_time: str) -> bool:
 
 
 def slot_counts_for_date(db, target_date: date):
-    """Combined count across BOTH physical and online bookings for a date — shared capacity pool."""
-    rows = db.query(Inquiry).filter(Inquiry.appointment_date == target_date).all()
+    """Combined count across BOTH physical and online bookings for a date — shared capacity pool.
+    Cancelled bookings don't count against capacity, so cancelling frees the slot."""
+    rows = db.query(Inquiry).filter(
+        Inquiry.appointment_date == target_date,
+        Inquiry.status != "Cancelled",
+    ).all()
     counts = {t: 0 for t in SLOT_TIMES}
     for row in rows:
         if row.appointment_time in counts:
             counts[row.appointment_time] += 1
     return counts
+
+
+def generate_confirmation_code():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
+def send_refund_notification(name, phone, appt_date, appt_time):
+    if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD and NOTIFY_EMAILS):
+        return
+    body = (
+        f"An ONLINE (paid) appointment was just cancelled. If payment was received, a refund may be owed.\n\n"
+        f"Name: {name}\nPhone: {phone}\nOriginal date: {appt_date}\nOriginal time: {appt_time}"
+    )
+    msg = MIMEText(body)
+    msg["Subject"] = f"Refund check needed — {name} ({appt_date} {appt_time}) cancelled"
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = ", ".join(NOTIFY_EMAILS)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAILS, msg.as_string())
+    except Exception:
+        pass
+
+
+def send_reschedule_notification(name, phone, old_date, old_time, new_date, new_time):
+    if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD and NOTIFY_EMAILS):
+        return
+    body = (
+        f"A patient rescheduled their own appointment.\n\n"
+        f"Name: {name}\nPhone: {phone}\n"
+        f"Old: {old_date} {old_time}\nNew: {new_date} {new_time}"
+    )
+    msg = MIMEText(body)
+    msg["Subject"] = f"Patient rescheduled — {name} (now {new_date} {new_time})"
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = ", ".join(NOTIFY_EMAILS)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAILS, msg.as_string())
+    except Exception:
+        pass
 
 
 def send_payment_notification(name, phone, appt_date, appt_time):
@@ -164,6 +216,7 @@ async def create_inquiry(
     existing = db.query(Inquiry).filter(
         Inquiry.phone == phone,
         Inquiry.appointment_date == appointment_date,
+        Inquiry.status != "Cancelled",
     ).first()
     if existing:
         db.close()
@@ -185,6 +238,7 @@ async def create_inquiry(
         with open(dest_path, "wb") as f:
             shutil.copyfileobj(payment_screenshot.file, f)
 
+    code = generate_confirmation_code()
     new_inquiry = Inquiry(
         name=name,
         phone=phone,
@@ -192,6 +246,7 @@ async def create_inquiry(
         appointment_time=appointment_time,
         appointment_type=appointment_type,
         payment_screenshot_path=screenshot_filename,
+        confirmation_code=code,
         status="Pending Payment Verification" if appointment_type == "online" else "New",
     )
     db.add(new_inquiry)
@@ -202,7 +257,7 @@ async def create_inquiry(
     if appointment_type == "online":
         send_payment_notification(name, phone, appointment_date, appointment_time)
 
-    return {"status": "saved", "id": new_inquiry.id}
+    return {"status": "saved", "id": new_inquiry.id, "confirmation_code": code}
 
 
 @app.get("/inquiries", dependencies=[Depends(verify_admin)])
@@ -226,17 +281,79 @@ def get_payment_screenshot(inquiry_id: int):
     return FileResponse(file_path)
 
 
-class StatusUpdateIn:
-    pass
-
-
-from pydantic import BaseModel
-
-
 class StatusUpdate(BaseModel):
     status: str = None
     appointment_date: date = None
     appointment_time: str = None
+
+
+class BookingLookup(BaseModel):
+    phone: str
+    confirmation_code: str
+
+
+class BookingReschedule(BaseModel):
+    phone: str
+    confirmation_code: str
+    new_date: date
+    new_time: str
+
+
+def find_booking(db, phone: str, confirmation_code: str):
+    return db.query(Inquiry).filter(
+        Inquiry.phone == phone,
+        Inquiry.confirmation_code == confirmation_code.strip().upper(),
+        Inquiry.status != "Cancelled",
+    ).first()
+
+
+@app.post("/my-booking/lookup")
+def lookup_booking(req: BookingLookup):
+    db = SessionLocal()
+    inquiry = find_booking(db, req.phone, req.confirmation_code)
+    db.close()
+    if not inquiry:
+        raise HTTPException(status_code=404, detail="No matching booking found. Check your phone number and confirmation code.")
+    return {
+        "name": inquiry.name,
+        "appointment_date": inquiry.appointment_date,
+        "appointment_time": inquiry.appointment_time,
+        "appointment_type": inquiry.appointment_type,
+        "status": inquiry.status,
+    }
+
+
+@app.post("/my-booking/reschedule")
+def reschedule_booking(req: BookingReschedule):
+    if req.new_date.weekday() not in OPEN_WEEKDAYS:
+        raise HTTPException(status_code=400, detail="Clinic is closed on weekends. Please pick a weekday.")
+    if req.new_time not in SLOT_TIMES:
+        raise HTTPException(status_code=400, detail="Invalid time slot.")
+    if is_slot_in_past(req.new_date, req.new_time):
+        raise HTTPException(status_code=400, detail="This date and time has already passed. Please choose a present or future time.")
+
+    db = SessionLocal()
+    inquiry = find_booking(db, req.phone, req.confirmation_code)
+    if not inquiry:
+        db.close()
+        raise HTTPException(status_code=404, detail="No matching booking found. Check your phone number and confirmation code.")
+
+    counts = slot_counts_for_date(db, req.new_date)
+    already_in_target = (inquiry.appointment_date == req.new_date and inquiry.appointment_time == req.new_time)
+    if not already_in_target and counts[req.new_time] >= SLOT_CAPACITY:
+        db.close()
+        raise HTTPException(status_code=409, detail="This date and time slot is already booked. Please choose another time.")
+
+    old_date, old_time = inquiry.appointment_date, inquiry.appointment_time
+    inquiry.appointment_date = req.new_date
+    inquiry.appointment_time = req.new_time
+    name, phone = inquiry.name, inquiry.phone
+    db.commit()
+    db.close()
+
+    send_reschedule_notification(name, phone, old_date, old_time, req.new_date, req.new_time)
+
+    return {"status": "rescheduled", "new_date": str(req.new_date), "new_time": req.new_time}
 
 
 @app.patch("/inquiries/{inquiry_id}", dependencies=[Depends(verify_admin)])
@@ -246,6 +363,8 @@ def update_inquiry(inquiry_id: int, update: StatusUpdate):
     if not inquiry:
         db.close()
         raise HTTPException(status_code=404, detail="Not found")
+
+    was_cancelled_already = inquiry.status == "Cancelled"
 
     if update.status is not None:
         inquiry.status = update.status
@@ -260,6 +379,15 @@ def update_inquiry(inquiry_id: int, update: StatusUpdate):
         inquiry.appointment_date = update.appointment_date
         inquiry.appointment_time = update.appointment_time
 
+    just_cancelled_paid_booking = (
+        update.status == "Cancelled" and not was_cancelled_already and inquiry.appointment_type == "online"
+    )
+    name, phone, appt_date, appt_time = inquiry.name, inquiry.phone, inquiry.appointment_date, inquiry.appointment_time
+
     db.commit()
     db.close()
+
+    if just_cancelled_paid_booking:
+        send_refund_notification(name, phone, appt_date, appt_time)
+
     return {"status": "updated"}

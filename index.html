@@ -139,6 +139,32 @@
   <p id="form-message"></p>
 </section>
 
+<section class="info" id="manage-booking">
+  <h2>Manage Your Booking</h2>
+  <p>Need to reschedule? Enter the phone number and confirmation code you received when booking.</p>
+  <form id="lookup-form">
+    <label>Phone
+      <input type="tel" id="lookup-phone" required>
+    </label>
+    <label>Confirmation Code
+      <input type="text" id="lookup-code" required style="text-transform: uppercase;">
+    </label>
+    <button type="submit">Find My Booking</button>
+  </form>
+  <p id="lookup-message"></p>
+
+  <div id="reschedule-panel" style="display:none;">
+    <h3 id="reschedule-current"></h3>
+    <label>New Date
+      <input type="date" id="reschedule-date">
+    </label>
+    <label>New Time</label>
+    <div id="reschedule-slot-picker" class="slot-picker"></div>
+    <input type="hidden" id="reschedule-selected-slot">
+    <button type="button" id="reschedule-submit-btn" disabled>Confirm New Time</button>
+  </div>
+</section>
+
 <hr class="horizon">
 <footer>
   <div class="social-links">
@@ -247,9 +273,11 @@ document.getElementById('appointment-form').addEventListener('submit', function(
   .then(async res => {
     const result = await res.json();
     if (!res.ok) throw new Error(result.detail || 'Something went wrong');
-    document.getElementById('form-message').textContent = appointmentType === 'online'
+    const baseMessage = appointmentType === 'online'
       ? "Thank you! Your request is pending — we'll confirm once your payment is verified."
       : "Thank you! Your request has been received.";
+    document.getElementById('form-message').innerHTML =
+      `${baseMessage}<br><strong>Your confirmation code: ${result.confirmation_code}</strong><br>Save this — you'll need your phone number and this code to reschedule below if needed.`;
     document.getElementById('appointment-form').reset();
     document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
     document.querySelector('.type-btn[data-type="physical"]').classList.add('selected');
@@ -260,6 +288,106 @@ document.getElementById('appointment-form').addEventListener('submit', function(
   })
   .catch(err => {
     document.getElementById('form-message').textContent = err.message || "Something went wrong. Please try WhatsApp instead.";
+  });
+});
+
+// --- Manage Your Booking (self-service reschedule) ---
+let activeLookup = null;
+const rescheduleDateInput = document.getElementById('reschedule-date');
+const rescheduleSlotPicker = document.getElementById('reschedule-slot-picker');
+const rescheduleSelectedSlot = document.getElementById('reschedule-selected-slot');
+const rescheduleSubmitBtn = document.getElementById('reschedule-submit-btn');
+rescheduleDateInput.min = todayStr;
+
+document.getElementById('lookup-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const phone = document.getElementById('lookup-phone').value;
+  const code = document.getElementById('lookup-code').value;
+  document.getElementById('lookup-message').textContent = 'Searching...';
+
+  fetch(`${BACKEND}/my-booking/lookup`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ phone, confirmation_code: code })
+  })
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || 'Booking not found');
+    activeLookup = { phone, confirmation_code: code };
+    document.getElementById('lookup-message').textContent = '';
+    document.getElementById('reschedule-panel').style.display = 'block';
+    const typeLabel = result.appointment_type === 'online' ? 'Online Consultation' : 'In-Person Visit';
+    document.getElementById('reschedule-current').textContent =
+      `${result.name} — currently booked: ${result.appointment_date} at ${formatTime12h(result.appointment_time)} (${typeLabel})`;
+  })
+  .catch(err => {
+    activeLookup = null;
+    document.getElementById('reschedule-panel').style.display = 'none';
+    document.getElementById('lookup-message').textContent = err.message;
+  });
+});
+
+rescheduleDateInput.addEventListener('change', () => {
+  const chosenDate = rescheduleDateInput.value;
+  rescheduleSelectedSlot.value = '';
+  rescheduleSubmitBtn.disabled = true;
+  if (!chosenDate) return;
+
+  rescheduleSlotPicker.innerHTML = '<p class="slot-hint">Loading available times...</p>';
+  fetch(`${BACKEND}/available-slots?for_date=${chosenDate}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.open) {
+        rescheduleSlotPicker.innerHTML = '<p class="slot-hint">Clinic is closed on this day. Please choose Mon–Fri.</p>';
+        return;
+      }
+      rescheduleSlotPicker.innerHTML = '';
+      data.slots.forEach(slot => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const disabled = slot.full || slot.past;
+        let label = formatTime12h(slot.time);
+        if (slot.past) label += ' — Past';
+        else if (slot.full) label += ' — Fully Booked';
+        btn.className = 'slot-btn' + (disabled ? ' full' : '');
+        btn.textContent = label;
+        btn.disabled = disabled;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#reschedule-slot-picker .slot-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          rescheduleSelectedSlot.value = slot.time;
+          rescheduleSubmitBtn.disabled = false;
+        });
+        rescheduleSlotPicker.appendChild(btn);
+      });
+    })
+    .catch(() => {
+      rescheduleSlotPicker.innerHTML = '<p class="slot-hint">Could not load slots. Please try again.</p>';
+    });
+});
+
+rescheduleSubmitBtn.addEventListener('click', () => {
+  if (!activeLookup || !rescheduleSelectedSlot.value) return;
+  fetch(`${BACKEND}/my-booking/reschedule`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      phone: activeLookup.phone,
+      confirmation_code: activeLookup.confirmation_code,
+      new_date: rescheduleDateInput.value,
+      new_time: rescheduleSelectedSlot.value
+    })
+  })
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || 'Could not reschedule');
+    document.getElementById('lookup-message').textContent =
+      `Done — your appointment is now on ${result.new_date} at ${formatTime12h(result.new_time)}.`;
+    document.getElementById('reschedule-panel').style.display = 'none';
+    document.getElementById('lookup-form').reset();
+  })
+  .catch(err => {
+    alert(err.message);
   });
 });
 </script>
