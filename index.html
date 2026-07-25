@@ -167,6 +167,24 @@
   </div>
 </section>
 
+<section class="info" id="contact-us">
+  <h2>Contact Us</h2>
+  <p>Have a general question, not related to booking an appointment? Send us a message.</p>
+  <form id="contact-form">
+    <label>Name
+      <input type="text" id="contact-name" required>
+    </label>
+    <label>Phone or Email
+      <input type="text" id="contact-info" required>
+    </label>
+    <label>Message
+      <textarea id="contact-message" rows="4" required></textarea>
+    </label>
+    <button type="submit">Send Message</button>
+  </form>
+  <p id="contact-form-message"></p>
+</section>
+
 <hr class="horizon">
 <footer>
   <div class="social-links">
@@ -415,6 +433,29 @@ document.getElementById('cancel-my-booking-btn').addEventListener('click', () =>
   })
   .catch(err => {
     alert(err.message);
+  });
+});
+
+// --- General Contact Us form ---
+document.getElementById('contact-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const data = {
+    name: document.getElementById('contact-name').value,
+    contact_info: document.getElementById('contact-info').value,
+    message: document.getElementById('contact-message').value
+  };
+  fetch(`${BACKEND}/contact-messages`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Something went wrong');
+    document.getElementById('contact-form-message').textContent = "Thank you, we've received your message.";
+    document.getElementById('contact-form').reset();
+  })
+  .catch(() => {
+    document.getElementById('contact-form-message').textContent = "Something went wrong. Please try WhatsApp instead.";
   });
 });
 </script>

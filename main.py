@@ -55,6 +55,16 @@ class Inquiry(Base):
     status = Column(String, default="New")
 
 
+class ContactMessage(Base):
+    __tablename__ = "contact_messages"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    contact_info = Column(String)  # phone or email, whatever they gave
+    message = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    read = Column(String, default="Unread")  # "Unread" or "Read"
+
+
 Base.metadata.create_all(engine)
 
 with engine.connect() as conn:
@@ -190,6 +200,64 @@ def send_payment_notification(name, phone, appt_date, appt_time):
             server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAILS, msg.as_string())
     except Exception:
         pass  # never let an email failure break the booking itself
+
+
+class ContactMessageIn(BaseModel):
+    name: str
+    contact_info: str
+    message: str
+
+
+def send_contact_message_notification(name, contact_info, message):
+    if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD and NOTIFY_EMAILS):
+        return
+    body = f"New contact message.\n\nName: {name}\nContact: {contact_info}\n\nMessage:\n{message}"
+    msg = MIMEText(body)
+    msg["Subject"] = f"New contact message from {name}"
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = ", ".join(NOTIFY_EMAILS)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAILS, msg.as_string())
+    except Exception:
+        pass
+
+
+@app.post("/contact-messages")
+def create_contact_message(msg: ContactMessageIn):
+    db = SessionLocal()
+    new_msg = ContactMessage(name=msg.name, contact_info=msg.contact_info, message=msg.message)
+    db.add(new_msg)
+    db.commit()
+    db.close()
+    send_contact_message_notification(msg.name, msg.contact_info, msg.message)
+    return {"status": "saved"}
+
+
+@app.get("/contact-messages", dependencies=[Depends(verify_admin)])
+def list_contact_messages():
+    db = SessionLocal()
+    results = db.query(ContactMessage).order_by(ContactMessage.created_at.desc()).all()
+    db.close()
+    return results
+
+
+class ContactMessageStatusUpdate(BaseModel):
+    read: str
+
+
+@app.patch("/contact-messages/{message_id}", dependencies=[Depends(verify_admin)])
+def update_contact_message(message_id: int, update: ContactMessageStatusUpdate):
+    db = SessionLocal()
+    msg = db.query(ContactMessage).filter(ContactMessage.id == message_id).first()
+    if not msg:
+        db.close()
+        raise HTTPException(status_code=404, detail="Not found")
+    msg.read = update.read
+    db.commit()
+    db.close()
+    return {"status": "updated"}
 
 
 @app.get("/available-slots")

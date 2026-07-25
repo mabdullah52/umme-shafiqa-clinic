@@ -69,6 +69,75 @@ body {
   letter-spacing: 0.5px;
 }
 
+.view-tabs {
+  max-width: 1000px;
+  margin: 0 auto 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.view-tab-btn {
+  padding: 9px 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--slate-soft);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.view-tab-btn.selected {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+#daily-schedule-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.schedule-slot-box {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+
+.schedule-slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem;
+  color: var(--navy);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.schedule-slot-count {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-soft);
+}
+
+.schedule-slot-count.full {
+  color: var(--rose);
+}
+
+.schedule-patient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 0.9rem;
+}
+
 .search-wrap {
   max-width: 1000px;
   margin: 0 auto 14px;
@@ -222,14 +291,37 @@ select {
   </div>
 </div>
 
-<div class="search-wrap">
-  <input type="text" id="search-box" placeholder="Search by name or phone..." oninput="filterInquiries()">
+<div class="view-tabs">
+  <button type="button" class="view-tab-btn selected" id="tab-all" onclick="switchView('all')">All Requests</button>
+  <button type="button" class="view-tab-btn" id="tab-daily" onclick="switchView('daily')">Daily Schedule</button>
+  <button type="button" class="view-tab-btn" id="tab-messages" onclick="switchView('messages')">Messages</button>
 </div>
 
-<div class="table-wrap">
-  <table id="data-table">
-    <tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
-  </table>
+<div id="view-all">
+  <div class="search-wrap">
+    <input type="text" id="search-box" placeholder="Search by name or phone..." oninput="filterInquiries()">
+  </div>
+
+  <div class="table-wrap">
+    <table id="data-table">
+      <tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
+    </table>
+  </div>
+</div>
+
+<div id="view-daily" style="display:none;">
+  <div class="search-wrap">
+    <input type="date" id="daily-date-picker">
+  </div>
+  <div id="daily-schedule-container"></div>
+</div>
+
+<div id="view-messages" style="display:none;">
+  <div class="table-wrap">
+    <table id="messages-table">
+      <tr><th>Name</th><th>Contact</th><th>Message</th><th>Received</th><th>Status</th></tr>
+    </table>
+  </div>
 </div>
 
 <script>
@@ -413,6 +505,97 @@ function updateStatus(id, newStatus) {
     headers: {'Content-Type': 'application/json', 'Authorization': getAuth()},
     body: JSON.stringify({status: newStatus})
   }).then(() => loadData());
+}
+
+// --- View tabs ---
+const SCHEDULE_SLOT_TIMES = ["19:30", "20:00", "20:30", "21:00", "21:30"];
+const SLOT_CAPACITY = 3;
+
+function switchView(view) {
+  document.getElementById('view-all').style.display = view === 'all' ? 'block' : 'none';
+  document.getElementById('view-daily').style.display = view === 'daily' ? 'block' : 'none';
+  document.getElementById('view-messages').style.display = view === 'messages' ? 'block' : 'none';
+  document.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById(`tab-${view}`).classList.add('selected');
+
+  if (view === 'daily') renderDailySchedule();
+  if (view === 'messages') loadMessages();
+}
+
+// --- Daily Schedule ---
+const dailyDatePicker = document.getElementById('daily-date-picker');
+dailyDatePicker.value = new Date().toLocaleDateString('en-CA');
+dailyDatePicker.addEventListener('change', renderDailySchedule);
+
+function renderDailySchedule() {
+  const container = document.getElementById('daily-schedule-container');
+  const chosenDate = dailyDatePicker.value;
+  if (!chosenDate) { container.innerHTML = ''; return; }
+
+  const dayBookings = allInquiries.filter(row => row.appointment_date === chosenDate);
+
+  container.innerHTML = '';
+  SCHEDULE_SLOT_TIMES.forEach(slotTime => {
+    const slotBookings = dayBookings.filter(row => row.appointment_time === slotTime && row.status !== 'Cancelled');
+    const box = document.createElement('div');
+    box.className = 'schedule-slot-box';
+    const full = slotBookings.length >= SLOT_CAPACITY;
+    box.innerHTML = `
+      <div class="schedule-slot-header">
+        <span>${formatTime12h(slotTime)}</span>
+        <span class="schedule-slot-count ${full ? 'full' : ''}">${slotBookings.length} / ${SLOT_CAPACITY}</span>
+      </div>
+      ${slotBookings.length === 0
+        ? '<p class="slot-hint">No bookings.</p>'
+        : slotBookings.map(row => `
+            <div class="schedule-patient-row">
+              <span>${row.name} (${row.phone}) — ${row.appointment_type === 'online' ? '💻 Online' : '🏥 In-Person'}</span>
+              <span class="status-pill" style="background:${STATUS_COLORS[row.status] || '#999'}">${row.status}</span>
+            </div>
+          `).join('')
+      }
+    `;
+    container.appendChild(box);
+  });
+}
+
+// --- Contact Messages ---
+function loadMessages() {
+  fetch(`${BACKEND}/contact-messages`, { headers: { 'Authorization': getAuth() } })
+    .then(res => res.json())
+    .then(data => {
+      const table = document.getElementById('messages-table');
+      table.innerHTML = '<tr><th>Name</th><th>Contact</th><th>Message</th><th>Received</th><th>Status</th></tr>';
+      if (data.length === 0) {
+        table.innerHTML += `<tr><td colspan="5" class="empty-state">No messages yet.</td></tr>`;
+        return;
+      }
+      data.forEach(msg => {
+        const tr = document.createElement('tr');
+        const date = new Date(msg.created_at).toLocaleString();
+        tr.innerHTML = `
+          <td>${msg.name}</td>
+          <td>${msg.contact_info}</td>
+          <td>${msg.message}</td>
+          <td>${date}</td>
+          <td>
+            <select onchange="updateMessageStatus(${msg.id}, this.value)">
+              <option value="Unread" ${msg.read === 'Unread' ? 'selected' : ''}>Unread</option>
+              <option value="Read" ${msg.read === 'Read' ? 'selected' : ''}>Read</option>
+            </select>
+          </td>`;
+        table.appendChild(tr);
+      });
+    })
+    .catch(() => {});
+}
+
+function updateMessageStatus(id, newStatus) {
+  fetch(`${BACKEND}/contact-messages/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json', 'Authorization': getAuth()},
+    body: JSON.stringify({read: newStatus})
+  }).then(() => loadMessages());
 }
 
 loadData();
