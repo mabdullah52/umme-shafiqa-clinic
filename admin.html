@@ -60,6 +60,25 @@ body {
   margin: 2px 0 0;
 }
 
+.search-wrap {
+  max-width: 1000px;
+  margin: 0 auto 14px;
+}
+
+#search-box {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+}
+
+#search-box:focus {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
 .table-wrap {
   max-width: 1000px;
   margin: 0 auto;
@@ -194,6 +213,10 @@ select {
   </div>
 </div>
 
+<div class="search-wrap">
+  <input type="text" id="search-box" placeholder="Search by name or phone..." oninput="filterInquiries()">
+</div>
+
 <div class="table-wrap">
   <table id="data-table">
     <tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>
@@ -214,6 +237,8 @@ function getAuth() {
   return authHeader;
 }
 
+let allInquiries = [];
+
 function loadData() {
   fetch(BACKEND + '/inquiries', { headers: { 'Authorization': getAuth() } })
     .then(res => {
@@ -226,46 +251,63 @@ function loadData() {
     })
     .then(data => {
       data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      const table = document.getElementById('data-table');
-      table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>';
-
-      if (data.length === 0) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="6" class="empty-state">No appointment requests yet.</td>`;
-        table.appendChild(tr);
-        return;
-      }
-
-      data.forEach(row => {
-        const tr = document.createElement('tr');
-        if (row.status === 'Done') tr.classList.add('done');
-        const date = new Date(row.created_at).toLocaleString();
-        const color = STATUS_COLORS[row.status] || '#999';
-        const isOnline = row.appointment_type === 'online';
-        tr.innerHTML = `
-          <td>${row.name}</td>
-          <td>${row.phone}</td>
-          <td>${isOnline ? '💻 Online' : '🏥 In-Person'}${isOnline ? `<br><button type="button" onclick="viewPayment(${row.id})" class="view-payment-btn">View Payment</button>` : ''}</td>
-          <td id="appt-cell-${row.id}">
-            <span id="appt-text-${row.id}">${row.appointment_date ? row.appointment_date + ' ' + formatTime12h(row.appointment_time) : '—'}</span>
-            <button type="button" class="reassign-btn" onclick="startReassign(${row.id}, '${row.appointment_date || ''}')">Reassign</button>
-          </td>
-          <td>${date}</td>
-          <td>
-            <span class="status-pill" style="background:${color}">${row.status}</span>
-            <select onchange="updateStatus(${row.id}, this.value)">
-              <option value="Pending Payment Verification" ${row.status === 'Pending Payment Verification' ? 'selected' : ''}>Pending Payment</option>
-              <option value="New" ${row.status === 'New' ? 'selected' : ''}>New</option>
-              <option value="Contacted" ${row.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
-              <option value="Done" ${row.status === 'Done' ? 'selected' : ''}>Done</option>
-              <option value="Cancelled" ${row.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-            </select>
-            ${row.status !== 'Cancelled' ? `<button type="button" class="cancel-btn" onclick="cancelBooking(${row.id}, '${row.name.replace(/'/g, "\\'")}')">Cancel</button>` : ''}
-          </td>`;
-        table.appendChild(tr);
-      });
+      allInquiries = data;
+      renderTable(data);
     })
     .catch(() => {});
+}
+
+function renderTable(data) {
+  const table = document.getElementById('data-table');
+  table.innerHTML = '<tr><th>Name</th><th>Phone</th><th>Type</th><th>Appointment</th><th>Received</th><th>Status</th></tr>';
+
+  if (data.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" class="empty-state">No matching appointment requests.</td>`;
+    table.appendChild(tr);
+    return;
+  }
+
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.status === 'Done') tr.classList.add('done');
+    const date = new Date(row.created_at).toLocaleString();
+    const color = STATUS_COLORS[row.status] || '#999';
+    const isOnline = row.appointment_type === 'online';
+    tr.innerHTML = `
+      <td>${row.name}</td>
+      <td>${row.phone}</td>
+      <td>${isOnline ? '💻 Online' : '🏥 In-Person'}${isOnline ? `<br><button type="button" onclick="viewPayment(${row.id})" class="view-payment-btn">View Payment</button>` : ''}</td>
+      <td id="appt-cell-${row.id}">
+        <span id="appt-text-${row.id}">${row.appointment_date ? row.appointment_date + ' ' + formatTime12h(row.appointment_time) : '—'}</span>
+        <button type="button" class="reassign-btn" onclick="startReassign(${row.id}, '${row.appointment_date || ''}')">Reassign</button>
+      </td>
+      <td>${date}</td>
+      <td>
+        <span class="status-pill" style="background:${color}">${row.status}</span>
+        <select onchange="updateStatus(${row.id}, this.value)">
+          <option value="Pending Payment Verification" ${row.status === 'Pending Payment Verification' ? 'selected' : ''}>Pending Payment</option>
+          <option value="New" ${row.status === 'New' ? 'selected' : ''}>New</option>
+          <option value="Contacted" ${row.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
+          <option value="Done" ${row.status === 'Done' ? 'selected' : ''}>Done</option>
+          <option value="Cancelled" ${row.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+        </select>
+        ${row.status !== 'Cancelled' ? `<button type="button" class="cancel-btn" onclick="cancelBooking(${row.id}, '${row.name.replace(/'/g, "\\'")}')">Cancel</button>` : ''}
+      </td>`;
+    table.appendChild(tr);
+  });
+}
+
+function filterInquiries() {
+  const query = document.getElementById('search-box').value.trim().toLowerCase();
+  if (!query) {
+    renderTable(allInquiries);
+    return;
+  }
+  const filtered = allInquiries.filter(row =>
+    row.name.toLowerCase().includes(query) || row.phone.toLowerCase().includes(query)
+  );
+  renderTable(filtered);
 }
 
 function formatTime12h(t) {
