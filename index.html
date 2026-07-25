@@ -141,7 +141,8 @@
 
 <section class="info" id="manage-booking">
   <h2>Manage Your Booking</h2>
-  <p>Need to reschedule? Enter the phone number and confirmation code you received when booking.</p>
+  <p>Need to reschedule or cancel? Enter the phone number and confirmation code you received when booking.</p>
+  <p class="slot-hint">Forgot your code? Message us on WhatsApp with your name and phone number and we'll look it up for you.</p>
   <form id="lookup-form">
     <label>Phone
       <input type="tel" id="lookup-phone" required>
@@ -162,6 +163,7 @@
     <div id="reschedule-slot-picker" class="slot-picker"></div>
     <input type="hidden" id="reschedule-selected-slot">
     <button type="button" id="reschedule-submit-btn" disabled>Confirm New Time</button>
+    <button type="button" id="cancel-my-booking-btn" class="cancel-my-booking-btn">Cancel This Appointment</button>
   </div>
 </section>
 
@@ -385,6 +387,31 @@ rescheduleSubmitBtn.addEventListener('click', () => {
       `Done — your appointment is now on ${result.new_date} at ${formatTime12h(result.new_time)}.`;
     document.getElementById('reschedule-panel').style.display = 'none';
     document.getElementById('lookup-form').reset();
+  })
+  .catch(err => {
+    alert(err.message);
+  });
+});
+
+document.getElementById('cancel-my-booking-btn').addEventListener('click', () => {
+  if (!activeLookup) return;
+  if (!confirm('Are you sure you want to cancel this appointment? This cannot be undone.')) return;
+
+  fetch(`${BACKEND}/my-booking/cancel`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      phone: activeLookup.phone,
+      confirmation_code: activeLookup.confirmation_code
+    })
+  })
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || 'Could not cancel');
+    document.getElementById('lookup-message').textContent = 'Your appointment has been cancelled.';
+    document.getElementById('reschedule-panel').style.display = 'none';
+    document.getElementById('lookup-form').reset();
+    activeLookup = null;
   })
   .catch(err => {
     alert(err.message);

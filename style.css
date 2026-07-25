@@ -273,6 +273,20 @@ form input:focus {
   border-color: var(--amber);
 }
 
+.cancel-my-booking-btn {
+  background: #fff;
+  color: var(--rose);
+  border: 1px solid var(--rose);
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.cancel-my-booking-btn:hover { background: #FBEEEC; }
+
 form button {
   background: var(--rose);
   color: #fff;

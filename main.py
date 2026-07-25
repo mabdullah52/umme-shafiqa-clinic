@@ -131,6 +131,27 @@ def send_refund_notification(name, phone, appt_date, appt_time):
         pass
 
 
+def send_patient_cancel_notification(name, phone, appt_date, appt_time, appointment_type):
+    if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD and NOTIFY_EMAILS):
+        return
+    refund_line = "\n\nThis was a PAID online booking — refund may be owed." if appointment_type == "online" else ""
+    body = (
+        f"A patient cancelled their own appointment.\n\n"
+        f"Name: {name}\nPhone: {phone}\nDate: {appt_date}\nTime: {appt_time}\nType: {appointment_type}"
+        f"{refund_line}"
+    )
+    msg = MIMEText(body)
+    msg["Subject"] = f"Patient cancelled — {name} ({appt_date} {appt_time})"
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = ", ".join(NOTIFY_EMAILS)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAILS, msg.as_string())
+    except Exception:
+        pass
+
+
 def send_reschedule_notification(name, phone, old_date, old_time, new_date, new_time):
     if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD and NOTIFY_EMAILS):
         return
@@ -299,6 +320,11 @@ class BookingReschedule(BaseModel):
     new_time: str
 
 
+class BookingCancel(BaseModel):
+    phone: str
+    confirmation_code: str
+
+
 def find_booking(db, phone: str, confirmation_code: str):
     return db.query(Inquiry).filter(
         Inquiry.phone == phone,
@@ -354,6 +380,26 @@ def reschedule_booking(req: BookingReschedule):
     send_reschedule_notification(name, phone, old_date, old_time, req.new_date, req.new_time)
 
     return {"status": "rescheduled", "new_date": str(req.new_date), "new_time": req.new_time}
+
+
+@app.post("/my-booking/cancel")
+def cancel_booking_patient(req: BookingCancel):
+    db = SessionLocal()
+    inquiry = find_booking(db, req.phone, req.confirmation_code)
+    if not inquiry:
+        db.close()
+        raise HTTPException(status_code=404, detail="No matching booking found. Check your phone number and confirmation code.")
+
+    name, phone, appt_date, appt_time, appt_type = (
+        inquiry.name, inquiry.phone, inquiry.appointment_date, inquiry.appointment_time, inquiry.appointment_type
+    )
+    inquiry.status = "Cancelled"
+    db.commit()
+    db.close()
+
+    send_patient_cancel_notification(name, phone, appt_date, appt_time, appt_type)
+
+    return {"status": "cancelled"}
 
 
 @app.patch("/inquiries/{inquiry_id}", dependencies=[Depends(verify_admin)])
