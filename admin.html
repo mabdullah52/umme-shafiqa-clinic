@@ -60,6 +60,15 @@ body {
   margin: 2px 0 0;
 }
 
+.confirmation-code-tag {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  font-family: 'Fraunces', serif;
+  color: var(--slate-soft);
+  letter-spacing: 0.5px;
+}
+
 .search-wrap {
   max-width: 1000px;
   margin: 0 auto 14px;
@@ -276,7 +285,7 @@ function renderTable(data) {
     const isOnline = row.appointment_type === 'online';
     tr.innerHTML = `
       <td>${row.name}</td>
-      <td>${row.phone}</td>
+      <td>${row.phone}${row.confirmation_code ? `<br><span class="confirmation-code-tag">Code: ${row.confirmation_code}</span>` : ''}</td>
       <td>${isOnline ? '💻 Online' : '🏥 In-Person'}${isOnline ? `<br><button type="button" onclick="viewPayment(${row.id})" class="view-payment-btn">View Payment</button>` : ''}</td>
       <td id="appt-cell-${row.id}">
         <span id="appt-text-${row.id}">${row.appointment_date ? row.appointment_date + ' ' + formatTime12h(row.appointment_time) : '—'}</span>
@@ -305,7 +314,9 @@ function filterInquiries() {
     return;
   }
   const filtered = allInquiries.filter(row =>
-    row.name.toLowerCase().includes(query) || row.phone.toLowerCase().includes(query)
+    row.name.toLowerCase().includes(query) ||
+    row.phone.toLowerCase().includes(query) ||
+    (row.confirmation_code && row.confirmation_code.toLowerCase().includes(query))
   );
   renderTable(filtered);
 }
