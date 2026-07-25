@@ -5,6 +5,7 @@ import smtplib
 import string
 import random
 import uuid
+import requests
 from datetime import datetime, date
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -38,6 +39,57 @@ Path(SCREENSHOT_DIR).mkdir(parents=True, exist_ok=True)
 GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 NOTIFY_EMAILS = [e.strip() for e in os.environ.get("NOTIFY_EMAILS", "").split(",") if e.strip()]
+
+# Phase 3 — AI FAQ Assistant (Grok API, xAI)
+GROK_API_KEY = os.environ.get("GROK_API_KEY", "")
+GROK_API_URL = "https://api.x.ai/v1/chat/completions"
+GROK_MODEL = "grok-4.3"
+
+FAQ_SYSTEM_PROMPT = """You are the FAQ assistant for Umme Shafiqa Clinic, a home-based gynaecology clinic in Lahore, Pakistan, run by Dr. Rashida Latif.
+
+CLINIC FACTS (this is the ONLY information you may state as fact):
+- Doctor: Dr. Rashida Latif, gynaecologist. She has practiced in Lahore for many years — previously at Lady Wallington Hospital, then Mian Munshi Hospital, and is currently also affiliated with Jinnah Hospital, alongside running this clinic.
+- Address: House #113, Neelum Block, Allama Iqbal Town, Lahore.
+- Timings: Monday to Friday, 7:30 PM to 10:00 PM. Closed on weekends.
+- Services offered: gynaecological consultation, transvaginal ultrasound (TVS), infertility and female health care, and pregnancy care (consultation and ultrasound during pregnancy).
+- Gynae operations (e.g. general gynaecological surgery, C-section, and similar procedures) can also be arranged, but these are NOT booked through the website. Fees for operations vary case by case — direct patients to message the clinic on WhatsApp or arrange an appointment with the doctor directly to discuss this.
+- Fees: physical visit (consultation + ultrasound) is Rs. 2500–3000. TVS (transvaginal ultrasound) specifically is Rs. 3500. Online consultation is Rs. 1500.
+- Online consultations require payment (via JazzCash/EasyPaisa or Meezan Bank) and a payment screenshot upload; the appointment is confirmed only after staff verifies the payment.
+- Vaccinations are NOT offered at this clinic.
+- Booking is done through the clinic website's appointment form (physical or online consultation), or by contacting the clinic on WhatsApp.
+
+STRICT RULES — follow these without exception:
+1. ONLY answer questions about the clinic (hours, services, fees, location, booking process, the doctor's background). Do not answer general knowledge, unrelated, or off-topic questions — politely redirect to clinic topics instead.
+2. NEVER diagnose any medical condition, symptom, or complaint a patient describes.
+3. NEVER prescribe or recommend any medicine, dosage, or treatment.
+4. NEVER interpret lab reports, ultrasound results, or any medical documents or images.
+5. If a question falls outside clinic information, or requires medical judgment, or you are not certain the answer is covered by the facts above, respond exactly with: "Please consult the doctor."
+6. Keep answers short, warm, and factual. Never invent details not listed above.
+"""
+
+
+def call_grok_faq(user_message: str, conversation_history: list):
+    if not GROK_API_KEY:
+        return "Sorry, the assistant isn't set up yet. Please contact us on WhatsApp for now."
+
+    messages = [{"role": "system", "content": FAQ_SYSTEM_PROMPT}]
+    for turn in conversation_history[-8:]:  # keep a short rolling window, not unlimited history
+        if turn.get("role") in ("user", "assistant") and turn.get("content"):
+            messages.append({"role": turn["role"], "content": turn["content"]})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        resp = requests.post(
+            GROK_API_URL,
+            headers={"Authorization": f"Bearer {GROK_API_KEY}", "Content-Type": "application/json"},
+            json={"model": GROK_MODEL, "messages": messages, "temperature": 0.3, "max_tokens": 300},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception:
+        return "Sorry, I'm having trouble answering right now. Please contact us on WhatsApp."
 
 
 class Inquiry(Base):
@@ -258,6 +310,17 @@ def update_contact_message(message_id: int, update: ContactMessageStatusUpdate):
     db.commit()
     db.close()
     return {"status": "updated"}
+
+
+class FaqChatIn(BaseModel):
+    message: str
+    conversation: list = []
+
+
+@app.post("/faq-chat")
+def faq_chat(req: FaqChatIn):
+    reply = call_grok_faq(req.message, req.conversation)
+    return {"reply": reply}
 
 
 @app.get("/available-slots")

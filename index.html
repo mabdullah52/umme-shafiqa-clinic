@@ -458,7 +458,77 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
     document.getElementById('contact-form-message').textContent = "Something went wrong. Please try WhatsApp instead.";
   });
 });
+
+// --- FAQ Chat Widget ---
+let faqConversation = [];
+const faqPanel = document.getElementById('faq-panel');
+const faqMessages = document.getElementById('faq-messages');
+const faqInput = document.getElementById('faq-input');
+
+document.getElementById('faq-toggle-btn').addEventListener('click', () => {
+  faqPanel.style.display = faqPanel.style.display === 'none' ? 'flex' : 'none';
+});
+document.getElementById('faq-close-btn').addEventListener('click', () => {
+  faqPanel.style.display = 'none';
+});
+
+function addFaqMessage(text, sender) {
+  const div = document.createElement('div');
+  div.className = `faq-msg faq-msg-${sender}`;
+  div.textContent = text;
+  faqMessages.appendChild(div);
+  faqMessages.scrollTop = faqMessages.scrollHeight;
+}
+
+function sendFaqMessage() {
+  const text = faqInput.value.trim();
+  if (!text) return;
+  addFaqMessage(text, 'user');
+  faqInput.value = '';
+  faqInput.disabled = true;
+
+  fetch(`${BACKEND}/faq-chat`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ message: text, conversation: faqConversation })
+  })
+  .then(res => res.json())
+  .then(data => {
+    addFaqMessage(data.reply, 'bot');
+    faqConversation.push({ role: 'user', content: text });
+    faqConversation.push({ role: 'assistant', content: data.reply });
+  })
+  .catch(() => {
+    addFaqMessage("Sorry, something went wrong. Please contact us on WhatsApp.", 'bot');
+  })
+  .finally(() => {
+    faqInput.disabled = false;
+    faqInput.focus();
+  });
+}
+
+document.getElementById('faq-send-btn').addEventListener('click', sendFaqMessage);
+faqInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') sendFaqMessage();
+});
 </script>
+
+<div id="faq-widget">
+  <button id="faq-toggle-btn" aria-label="Ask a question">💬</button>
+  <div id="faq-panel" style="display:none;">
+    <div id="faq-header">
+      <span>Ask us anything</span>
+      <button id="faq-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div id="faq-messages">
+      <div class="faq-msg faq-msg-bot">Hi! Ask me about our hours, services, fees, or booking. For medical questions, please consult the doctor directly.</div>
+    </div>
+    <div id="faq-input-row">
+      <input type="text" id="faq-input" placeholder="Type your question...">
+      <button id="faq-send-btn">Send</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
