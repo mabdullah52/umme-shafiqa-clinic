@@ -10,6 +10,23 @@
 </head>
 <body>
 
+<div id="faq-widget">
+  <button id="faq-toggle-btn" aria-label="Ask a question">💬</button>
+  <div id="faq-panel" style="display:none;">
+    <div id="faq-header">
+      <span>Ask us anything</span>
+      <button id="faq-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div id="faq-messages">
+      <div class="faq-msg faq-msg-bot">Hi, I'm the AI assistant for Umme Shafiqa Clinic. I can help answer questions about our services, timings, fees, booking, and appointments. For medical questions, please consult the doctor directly.</div>
+    </div>
+    <div id="faq-input-row">
+      <input type="text" id="faq-input" placeholder="Type your question...">
+      <button id="faq-send-btn">Send</button>
+    </div>
+  </div>
+</div>
+
 <header class="hero">
   <img src="logo.jpeg" alt="Umme Shafiqa Clinic Logo" class="logo">
   <h1>Umme Shafiqa Clinic</h1>
@@ -517,23 +534,6 @@ faqInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') sendFaqMessage();
 });
 </script>
-
-<div id="faq-widget">
-  <button id="faq-toggle-btn" aria-label="Ask a question">💬</button>
-  <div id="faq-panel" style="display:none;">
-    <div id="faq-header">
-      <span>Ask us anything</span>
-      <button id="faq-close-btn" aria-label="Close">✕</button>
-    </div>
-    <div id="faq-messages">
-      <div class="faq-msg faq-msg-bot">Hi, I'm the AI assistant for Umme Shafiqa Clinic. I can help answer questions about our services, timings, fees, booking, and appointments. For medical questions, please consult the doctor directly.</div>
-    </div>
-    <div id="faq-input-row">
-      <input type="text" id="faq-input" placeholder="Type your question...">
-      <button id="faq-send-btn">Send</button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
