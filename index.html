@@ -468,6 +468,11 @@ const faqInput = document.getElementById('faq-input');
 document.getElementById('faq-toggle-btn').addEventListener('click', () => {
   faqPanel.style.display = faqPanel.style.display === 'none' ? 'flex' : 'none';
 });
+
+// Auto-open once, a couple seconds after the page loads, so visitors see the intro
+setTimeout(() => {
+  faqPanel.style.display = 'flex';
+}, 2000);
 document.getElementById('faq-close-btn').addEventListener('click', () => {
   faqPanel.style.display = 'none';
 });
@@ -521,7 +526,7 @@ faqInput.addEventListener('keypress', (e) => {
       <button id="faq-close-btn" aria-label="Close">✕</button>
     </div>
     <div id="faq-messages">
-      <div class="faq-msg faq-msg-bot">Hi! Ask me about our hours, services, fees, or booking. For medical questions, please consult the doctor directly.</div>
+      <div class="faq-msg faq-msg-bot">Hi, I'm the AI assistant for Umme Shafiqa Clinic. I can help answer questions about our services, timings, fees, booking, and appointments. For medical questions, please consult the doctor directly.</div>
     </div>
     <div id="faq-input-row">
       <input type="text" id="faq-input" placeholder="Type your question...">
