@@ -85,10 +85,13 @@ def call_grok_faq(user_message: str, conversation_history: list):
             json={"model": GROK_MODEL, "messages": messages, "temperature": 0.3, "max_tokens": 300},
             timeout=20,
         )
+        print(f"GROK API STATUS: {resp.status_code}")
+        print(f"GROK API RESPONSE BODY: {resp.text[:2000]}")
         resp.raise_for_status()
         data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
-    except Exception:
+    except Exception as e:
+        print(f"GROK API ERROR: {repr(e)}")
         return "Sorry, I'm having trouble answering right now. Please contact us on WhatsApp."
 
 
