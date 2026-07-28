@@ -41,9 +41,9 @@ GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 NOTIFY_EMAILS = [e.strip() for e in os.environ.get("NOTIFY_EMAILS", "").split(",") if e.strip()]
 
 # Phase 3 — AI FAQ Assistant (Grok API, xAI)
-GROK_API_KEY = os.environ.get("GROK_API_KEY", "")
-GROK_API_URL = "https://api.x.ai/v1/chat/completions"
-GROK_MODEL = "grok-4.3"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 FAQ_SYSTEM_PROMPT = """You are the FAQ assistant for Umme Shafiqa Clinic, a home-based gynaecology clinic in Lahore, Pakistan, run by Dr. Rashida Latif.
 
@@ -68,8 +68,8 @@ STRICT RULES — follow these without exception:
 """
 
 
-def call_grok_faq(user_message: str, conversation_history: list):
-    if not GROK_API_KEY:
+def call_groq_faq(user_message: str, conversation_history: list):
+    if not GROQ_API_KEY:
         return "Sorry, the assistant isn't set up yet. Please contact us on WhatsApp for now."
 
     messages = [{"role": "system", "content": FAQ_SYSTEM_PROMPT}]
@@ -80,9 +80,9 @@ def call_grok_faq(user_message: str, conversation_history: list):
 
     try:
         resp = requests.post(
-            GROK_API_URL,
-            headers={"Authorization": f"Bearer {GROK_API_KEY}", "Content-Type": "application/json"},
-            json={"model": GROK_MODEL, "messages": messages, "temperature": 0.3, "max_tokens": 300},
+            GROQ_API_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+            json={"model": GROQ_MODEL, "messages": messages, "temperature": 0.3, "max_tokens": 300},
             timeout=20,
         )
         print(f"GROK API STATUS: {resp.status_code}")
@@ -322,7 +322,7 @@ class FaqChatIn(BaseModel):
 
 @app.post("/faq-chat")
 def faq_chat(req: FaqChatIn):
-    reply = call_grok_faq(req.message, req.conversation)
+    reply = call_groq_faq(req.message, req.conversation)
     return {"reply": reply}
 
 
