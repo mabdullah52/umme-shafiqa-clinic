@@ -120,15 +120,9 @@ class ContactMessage(Base):
     read = Column(String, default="Unread")  # "Unread" or "Read"
 
 
-Base.metadata.create_all(engine)
-
-with engine.connect() as conn:
-    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS appointment_date DATE"))
-    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS appointment_time VARCHAR"))
-    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS appointment_type VARCHAR DEFAULT 'physical'"))
-    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS payment_screenshot_path VARCHAR"))
-    conn.execute(text("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS confirmation_code VARCHAR"))
-    conn.commit()
+# Schema is now managed by Alembic migrations (see /migrations) — no more
+# manual create_all()/ALTER TABLE hacks here. Run `alembic upgrade head`
+# to apply schema changes.
 
 app = FastAPI()
 app.add_middleware(
