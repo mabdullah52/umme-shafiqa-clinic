@@ -23,6 +23,89 @@
 
 * { box-sizing: border-box; }
 
+#login-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+#login-box {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 36px 32px;
+  width: 320px;
+  max-width: 88vw;
+  text-align: center;
+  box-shadow: 0 6px 24px rgba(27,58,75,0.12);
+}
+
+#login-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 12px;
+}
+
+#login-box h2 {
+  font-family: 'Fraunces', serif;
+  color: var(--navy);
+  margin: 0 0 20px;
+}
+
+#login-box label {
+  display: block;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--slate);
+  margin-bottom: 14px;
+}
+
+#login-box input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+}
+
+#login-box button {
+  width: 100%;
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  padding: 11px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+#login-message {
+  color: var(--rose);
+  font-size: 0.85rem;
+  margin-top: 12px;
+}
+
+#logout-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--slate-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background: var(--cream);
@@ -283,12 +366,32 @@ select {
 </head>
 <body>
 
+<div id="login-overlay">
+  <div id="login-box">
+    <img src="logo.jpeg" alt="Clinic logo" id="login-logo">
+    <h2>Staff Login</h2>
+    <form id="login-form">
+      <label>Email
+        <input type="email" id="login-email" required>
+      </label>
+      <label>Password
+        <input type="password" id="login-password" required>
+      </label>
+      <button type="submit">Log In</button>
+    </form>
+    <p id="login-message"></p>
+  </div>
+</div>
+
+<div id="admin-content" style="display:none;">
+
 <div class="admin-header">
   <img src="logo.jpeg" alt="Clinic logo">
   <div>
     <h1>Appointment Requests</h1>
     <p class="subtitle">Umme Shafiqa Clinic — staff view</p>
   </div>
+  <button type="button" id="logout-btn">Log Out</button>
 </div>
 
 <div class="view-tabs">
@@ -324,18 +427,65 @@ select {
   </div>
 </div>
 
+</div>
+
 <script>
 const BACKEND = 'https://umme-shafiqa-backend-b8cwevgzcfgya3fe.austriaeast-01.azurewebsites.net';
 const STATUS_COLORS = { New: '#C17767', Contacted: '#D9A24B', Done: '#6B8F71', 'Pending Payment Verification': '#B5697A', Cancelled: '#8A8A8A' };
-let authHeader = null;
+let authToken = null;
+let currentRole = null;
 
 function getAuth() {
-  if (!authHeader) {
-    const user = prompt("Admin username:");
-    const pass = prompt("Admin password:");
-    authHeader = 'Basic ' + btoa(user + ':' + pass);
-  }
-  return authHeader;
+  return 'Bearer ' + authToken;
+}
+
+document.getElementById('login-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  document.getElementById('login-message').textContent = 'Logging in...';
+
+  fetch(`${BACKEND}/auth/login`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email, password })
+  })
+  .then(async res => {
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || 'Login failed');
+    authToken = result.access_token;
+    currentRole = result.role;
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    applyRolePermissions();
+    loadData();
+  })
+  .catch(err => {
+    document.getElementById('login-message').textContent = err.message;
+  });
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  authToken = null;
+  currentRole = null;
+  document.getElementById('admin-content').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-form').reset();
+});
+
+function applyRolePermissions() {
+  // Receptionists can manage bookings but not view payment screenshots
+  document.querySelectorAll('.view-payment-btn').forEach(btn => {
+    btn.style.display = currentRole === 'admin' ? 'inline-block' : 'none';
+  });
+}
+
+function handleAuthFailure() {
+  authToken = null;
+  currentRole = null;
+  document.getElementById('admin-content').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-message').textContent = 'Session expired, please log in again.';
 }
 
 let allInquiries = [];
@@ -344,8 +494,7 @@ function loadData() {
   fetch(BACKEND + '/inquiries', { headers: { 'Authorization': getAuth() } })
     .then(res => {
       if (res.status === 401) {
-        authHeader = null;
-        alert('Wrong username or password.');
+        handleAuthFailure();
         throw new Error('unauthorized');
       }
       return res.json();
@@ -598,7 +747,6 @@ function updateMessageStatus(id, newStatus) {
   }).then(() => loadMessages());
 }
 
-loadData();
 </script>
 </body>
 </html>
