@@ -6,18 +6,23 @@ import string
 import random
 import uuid
 import requests
-from datetime import datetime, date
+import bcrypt
+import jwt
+from datetime import datetime, date, timedelta
 from email.mime.text import MIMEText
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Depends, HTTPException, status, Form, File, UploadFile
 from fastapi.responses import FileResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+from passlib.context import CryptContext
+import jwt as pyjwt
+from datetime import timedelta
 
 CLINIC_TZ = ZoneInfo("Asia/Karachi")
 
@@ -120,6 +125,17 @@ class ContactMessage(Base):
     read = Column(String, default="Unread")  # "Unread" or "Read"
 
 
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="patient")  # "admin", "receptionist", or "patient"
+    name = Column(String)
+    phone = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Schema is now managed by Alembic migrations (see /migrations) — no more
 # manual create_all()/ALTER TABLE hacks here. Run `alembic upgrade head`
 # to apply schema changes.
@@ -132,19 +148,93 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-security = HTTPBasic()
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = 12
+
+bearer_scheme = HTTPBearer()
 
 
-def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_user = secrets.compare_digest(credentials.username, os.environ.get("ADMIN_USER", ""))
-    correct_pass = secrets.compare_digest(credentials.password, os.environ.get("ADMIN_PASS", ""))
-    if not (correct_user and correct_pass):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Basic"},
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
+
+
+def create_access_token(email: str, role: str) -> str:
+    payload = {
+        "sub": email,
+        "role": role,
+        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    if not JWT_SECRET:
+        raise HTTPException(status_code=500, detail="Server auth is not configured (missing JWT_SECRET).")
+    try:
+        payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired, please log in again.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session, please log in again.")
+    return {"email": payload["sub"], "role": payload["role"]}
+
+
+def require_role(*allowed_roles):
+    def checker(user: dict = Depends(get_current_user)):
+        if user["role"] not in allowed_roles:
+            raise HTTPException(status_code=403, detail="You don't have permission to do this.")
+        return user
+    return checker
+
+
+def bootstrap_admin_account():
+    """One-time migration: if no admin user exists yet, create one from the
+    legacy ADMIN_USER/ADMIN_PASS env vars so existing access keeps working."""
+    legacy_user = os.environ.get("ADMIN_USER", "")
+    legacy_pass = os.environ.get("ADMIN_PASS", "")
+    if not (legacy_user and legacy_pass):
+        return
+    db = SessionLocal()
+    existing = db.query(User).filter(User.role == "admin").first()
+    if not existing:
+        admin_email = legacy_user if "@" in legacy_user else f"{legacy_user}@clinic.local"
+        new_admin = User(
+            email=admin_email,
+            hashed_password=hash_password(legacy_pass),
+            role="admin",
+            name="Clinic Admin",
         )
-    return True
+        db.add(new_admin)
+        db.commit()
+        print(f"Bootstrapped admin account: {admin_email}")
+    db.close()
+
+
+bootstrap_admin_account()
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/auth/login")
+def login(req: LoginRequest):
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == req.email).first()
+    db.close()
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+    token = create_access_token(user.email, user.role)
+    return {"access_token": token, "token_type": "bearer", "role": user.role, "name": user.name}
 
 
 def is_slot_in_past(target_date: date, slot_time: str) -> bool:
@@ -284,7 +374,7 @@ def create_contact_message(msg: ContactMessageIn):
     return {"status": "saved"}
 
 
-@app.get("/contact-messages", dependencies=[Depends(verify_admin)])
+@app.get("/contact-messages", dependencies=[Depends(require_role("admin", "receptionist"))])
 def list_contact_messages():
     db = SessionLocal()
     results = db.query(ContactMessage).order_by(ContactMessage.created_at.desc()).all()
@@ -296,7 +386,7 @@ class ContactMessageStatusUpdate(BaseModel):
     read: str
 
 
-@app.patch("/contact-messages/{message_id}", dependencies=[Depends(verify_admin)])
+@app.patch("/contact-messages/{message_id}", dependencies=[Depends(require_role("admin", "receptionist"))])
 def update_contact_message(message_id: int, update: ContactMessageStatusUpdate):
     db = SessionLocal()
     msg = db.query(ContactMessage).filter(ContactMessage.id == message_id).first()
@@ -409,7 +499,7 @@ async def create_inquiry(
     return {"status": "saved", "id": new_inquiry.id, "confirmation_code": code}
 
 
-@app.get("/inquiries", dependencies=[Depends(verify_admin)])
+@app.get("/inquiries", dependencies=[Depends(require_role("admin", "receptionist"))])
 def list_inquiries():
     db = SessionLocal()
     results = db.query(Inquiry).all()
@@ -417,7 +507,7 @@ def list_inquiries():
     return results
 
 
-@app.get("/payment-screenshot/{inquiry_id}", dependencies=[Depends(verify_admin)])
+@app.get("/payment-screenshot/{inquiry_id}", dependencies=[Depends(require_role("admin"))])
 def get_payment_screenshot(inquiry_id: int):
     db = SessionLocal()
     inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
@@ -530,7 +620,7 @@ def cancel_booking_patient(req: BookingCancel):
     return {"status": "cancelled"}
 
 
-@app.patch("/inquiries/{inquiry_id}", dependencies=[Depends(verify_admin)])
+@app.patch("/inquiries/{inquiry_id}", dependencies=[Depends(require_role("admin", "receptionist"))])
 def update_inquiry(inquiry_id: int, update: StatusUpdate):
     db = SessionLocal()
     inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
