@@ -20,9 +20,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, text
 from sqlalchemy.orm import declarative_base, sessionmaker
-from passlib.context import CryptContext
-import jwt as pyjwt
-from datetime import timedelta
 
 CLINIC_TZ = ZoneInfo("Asia/Karachi")
 
