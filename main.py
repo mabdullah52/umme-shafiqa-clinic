@@ -194,25 +194,31 @@ def require_role(*allowed_roles):
 
 def bootstrap_admin_account():
     """One-time migration: if no admin user exists yet, create one from the
-    legacy ADMIN_USER/ADMIN_PASS env vars so existing access keeps working."""
+    legacy ADMIN_USER/ADMIN_PASS env vars so existing access keeps working.
+    Fails silently if the users table doesn't exist yet (e.g. before the
+    Alembic migration has been run) — the app must still be able to start
+    so that migration can actually be applied."""
     legacy_user = os.environ.get("ADMIN_USER", "")
     legacy_pass = os.environ.get("ADMIN_PASS", "")
     if not (legacy_user and legacy_pass):
         return
-    db = SessionLocal()
-    existing = db.query(User).filter(User.role == "admin").first()
-    if not existing:
-        admin_email = legacy_user if "@" in legacy_user else f"{legacy_user}@clinic.local"
-        new_admin = User(
-            email=admin_email,
-            hashed_password=hash_password(legacy_pass),
-            role="admin",
-            name="Clinic Admin",
-        )
-        db.add(new_admin)
-        db.commit()
-        print(f"Bootstrapped admin account: {admin_email}")
-    db.close()
+    try:
+        db = SessionLocal()
+        existing = db.query(User).filter(User.role == "admin").first()
+        if not existing:
+            admin_email = legacy_user if "@" in legacy_user else f"{legacy_user}@clinic.local"
+            new_admin = User(
+                email=admin_email,
+                hashed_password=hash_password(legacy_pass),
+                role="admin",
+                name="Clinic Admin",
+            )
+            db.add(new_admin)
+            db.commit()
+            print(f"Bootstrapped admin account: {admin_email}")
+        db.close()
+    except Exception as e:
+        print(f"Skipping admin bootstrap — users table may not exist yet (run 'alembic upgrade head'): {repr(e)}")
 
 
 bootstrap_admin_account()
