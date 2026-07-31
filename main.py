@@ -229,6 +229,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+@app.get("/admin-setup/init-users-table")
+def init_users_table(secret: str):
+    """TEMPORARY one-time setup endpoint — creates the users table directly,
+    since SSH access has been unreliable. Protected by ADMIN_PASS so random
+    visitors can't trigger it. Safe to leave in, but only does anything the
+    first time (CREATE TABLE IF NOT EXISTS is implicit via checkfirst)."""
+    if secret != os.environ.get("ADMIN_PASS", ""):
+        raise HTTPException(status_code=403, detail="Wrong secret.")
+    User.__table__.create(bind=engine, checkfirst=True)
+    return {"status": "users table created (or already existed)"}
+
+
 @app.post("/auth/login")
 def login(req: LoginRequest):
     db = SessionLocal()
